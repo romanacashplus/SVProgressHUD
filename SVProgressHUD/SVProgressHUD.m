@@ -30,7 +30,6 @@ static const CGFloat SVProgressHUDVerticalSpacing = 12.0f;
 static const CGFloat SVProgressHUDHorizontalSpacing = 12.0f;
 static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
 
-
 @interface SVProgressHUD ()
 
 @property (nonatomic, strong) NSTimer *graceTimer;
@@ -69,9 +68,20 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
     
     static SVProgressHUD *sharedView;
 #if !defined(SV_APP_EXTENSIONS)
-    dispatch_once(&once, ^{ sharedView = [[self alloc] initWithFrame:self.mainWindow.bounds]; });
+    dispatch_once(&once, ^{
+        
+        NSPredicate *foregroundActivePredict = [NSPredicate predicateWithBlock:^BOOL(id  _Nullable evaluatedObject, NSDictionary<NSString *,id> * _Nullable bindings) {
+           
+            return ([evaluatedObject activationState] == UISceneActivationStateForegroundActive);
+        }];
+        
+        NSSet<UIScene *> *setOfScene = [[[UIApplication sharedApplication] connectedScenes] filteredSetUsingPredicate:foregroundActivePredict];
+        UIWindowScene *windowScene = (UIWindowScene *)[[setOfScene allObjects] firstObject];
+        UIWindow *current = [[UIWindow alloc] initWithWindowScene:windowScene];
+        
+        sharedView = [[self alloc] initWithFrame:current.bounds]; });
 #else
-    dispatch_once(&once, ^{ sharedView = [[self alloc] initWithFrame:self.mainWindow bounds]; });
+    dispatch_once(&once, ^{ sharedView = [[self alloc] initWithFrame:[[UIScreen mainScreen] bounds]]; });
 #endif
     return sharedView;
 }
@@ -651,10 +661,10 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
     double animationDuration = 0.0;
 
 #if !defined(SV_APP_EXTENSIONS) && TARGET_OS_IOS
-    self.frame = [SVProgressHUD mainWindow].bounds;
+    self.frame = [self getCurrentWindow].bounds;
     UIInterfaceOrientation orientation = UIApplication.sharedApplication.statusBarOrientation;
 #elif !defined(SV_APP_EXTENSIONS) && !TARGET_OS_IOS
-    self.frame= [SVProgressHUD mainWindow].bounds;
+    self.frame= [UIApplication sharedApplication].keyWindow.bounds;
 #else
     if (self.viewForExtension) {
         self.frame = self.viewForExtension.frame;
@@ -1033,7 +1043,7 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
                     
                     // Tell the rootViewController to update the StatusBar appearance
 #if !defined(SV_APP_EXTENSIONS) && TARGET_OS_IOS
-                    UIViewController *rootController = [SVProgressHUD mainWindow].rootViewController;
+                    UIViewController *rootController = [self getCurrentWindow].rootViewController;
                     [rootController setNeedsStatusBarAppearanceUpdate];
 #endif
                     
@@ -1213,6 +1223,20 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
     }
 }
 
+- (UIWindow *)getCurrentWindow
+{
+    NSPredicate *foregroundActivePredict = [NSPredicate predicateWithBlock:^BOOL(id  _Nullable evaluatedObject, NSDictionary<NSString *,id> * _Nullable bindings) {
+       
+        return ([evaluatedObject activationState] == UISceneActivationStateForegroundActive);
+    }];
+    
+    NSSet<UIScene *> *setOfScene = [[[UIApplication sharedApplication] connectedScenes] filteredSetUsingPredicate:foregroundActivePredict];
+    UIWindowScene *windowScene = (UIWindowScene *)[[setOfScene allObjects] firstObject];
+    UIWindow *current = [[UIWindow alloc] initWithWindowScene:windowScene];
+    
+    return current;
+}
+
 - (UIControl*)controlView {
     if(!_controlView) {
         _controlView = [UIControl new];
@@ -1224,7 +1248,7 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
     
     // Update frames
 #if !defined(SV_APP_EXTENSIONS)
-    CGRect windowBounds = [SVProgressHUD mainWindow].bounds;
+    CGRect windowBounds = [self getCurrentWindow].bounds;
     _controlView.frame = windowBounds;
 #else
     _controlView.frame = [UIScreen mainScreen].bounds;
@@ -1541,21 +1565,6 @@ static const CGFloat SVProgressHUDLabelSpacing = 8.0f;
 
 - (void)setMaxSupportedWindowLevel:(UIWindowLevel)maxSupportedWindowLevel {
     if (!_isInitializing) _maxSupportedWindowLevel = maxSupportedWindowLevel;
-}
-
-+ (UIWindow *)mainWindow {
-    UIWindow *window = nil;
-    if (@available(iOS 13.0, *)) {
-       for (UIWindowScene* windowScene in [UIApplication sharedApplication].connectedScenes) {
-               if (windowScene.activationState == UISceneActivationStateForegroundActive) {
-                   window = windowScene.windows.firstObject;
-                   break;
-               }
-           }
-   }else {
-       window = [[[UIApplication sharedApplication] delegate] window];
-   }
-    return window;
 }
 
 @end
